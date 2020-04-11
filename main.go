@@ -150,7 +150,7 @@ var tmplStr = `
         https://github.com/seankhliao/{{ .Repo }}/blob/master{/dir}/{file}#L{line}" />
 <meta http-equiv="refresh"
         content="5;url=https://godoc.org/go.seankhliao.com/{{ .Repo }}" />
-<title>go.seankhliao.com/{{ .Repo }}</a>
+<title>go.seankhliao.com/{{ .Repo }}</title>
 <p>source: <a
         href="https://github.com/seankhliao/{{ .Repo }}"
         ping="https://log.seankhliao.com/api?trigger=ping&src=go.seankhliao.com/{{ .Repo }}&dst=github.com/seankhliao/{{ .Repo }}">
