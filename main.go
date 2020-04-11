@@ -96,7 +96,7 @@ func NewServer(args []string) *Server {
 	}
 
 	fs := flag.NewFlagSet("com-seankhliao-go", flag.ExitOnError)
-	fs.StringVar(&s.addr, "addr", ":8080", "host:port to serve on")
+	fs.StringVar(&s.addr, "addr", ":80", "host:port to serve on")
 	fs.StringVar(&s.tmpl, "tmpl", "builtin", "template to use, takes a singe {{.Repo}}, 'builtin' uses built in")
 	err = fs.Parse(args)
 	if err != nil {
@@ -108,6 +108,8 @@ func NewServer(args []string) *Server {
 	} else {
 		s.t = template.Must(template.ParseGlob(s.tmpl))
 	}
+
+	s.log.Infow("args", "addr", s.addr, "tmpl", s.tmpl)
 	return s
 }
 
@@ -138,33 +140,54 @@ type Module struct {
 }
 
 var tmplStr = `
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-<meta name="go-import"
-        content="go.seankhliao.com/{{ .Repo }}
-        git https://github.com/seankhliao/{{ .Repo }}" />
-<meta name="go-source"
-        content="go.seankhliao.com/{{ .Repo }}
+  <meta
+    name="go-import"
+    content="go.seankhliao.com/{{ .Repo }}
+        git https://github.com/seankhliao/{{ .Repo }}"
+  />
+  <meta
+    name="go-source"
+    content="go.seankhliao.com/{{ .Repo }}
         https://github.com/seankhliao/{{ .Repo }}
         https://github.com/seankhliao/{{ .Repo }}/tree/master{/dir}
-        https://github.com/seankhliao/{{ .Repo }}/blob/master{/dir}/{file}#L{line}" />
-<meta http-equiv="refresh"
-        content="5;url=https://godoc.org/go.seankhliao.com/{{ .Repo }}" />
-<title>go.seankhliao.com/{{ .Repo }}</title>
-<p>source: <a
-        href="https://github.com/seankhliao/{{ .Repo }}"
-        ping="https://log.seankhliao.com/api?trigger=ping&src=go.seankhliao.com/{{ .Repo }}&dst=github.com/seankhliao/{{ .Repo }}">
-        github</a></p>
-<p>docs: <a
-        href="https://godoc.org/go.seankhliao.com/{{ .Repo }}"
-        ping="https://log.seankhliao.com/api?trigger=ping&src=go.seankhliao.com/{{ .Repo }}&dst=godoc.org/go.seankhliao.com/{{ .Repo }}">
-        godoc</a></p>
-<script>
-let ts0 = new Date();
-window.addEventListener("unload", () => {
-  ts1 = new Date();
-  navigator.sendBeacon("https://log.seankhliao.com/api?trigger=beacon&src=go.seankhliao.com/{{ .Repo }}&time=" + (ts1 - ts0)/1000 + "s");
-});
-</script>
+        https://github.com/seankhliao/{{ .Repo }}/blob/master{/dir}/{file}#L{line}"
+  />
+  <meta http-equiv="refresh" content="5;url=https://godoc.org/go.seankhliao.com/{{ .Repo }}" />
+  <title>go.seankhliao.com/{{ .Repo }}</title>
+  <p>
+    source:
+    <a
+      href="https://github.com/seankhliao/{{ .Repo }}"
+      ping="https://log.seankhliao.com/api?trigger=ping&src=go.seankhliao.com/{{ .Repo }}&dst=github.com/seankhliao/{{ .Repo }}"
+    >
+      github</a
+    >
+  </p>
+  <p>
+    docs:
+    <a
+      href="https://godoc.org/go.seankhliao.com/{{ .Repo }}"
+      ping="https://log.seankhliao.com/api?trigger=ping&src=go.seankhliao.com/{{ .Repo }}&dst=godoc.org/go.seankhliao.com/{{ .Repo }}"
+    >
+      godoc</a
+    >
+  </p>
+  <script>
+    let ts0 = new Date();
+    let dst = "";
+    document.querySelectorAll("a").forEach((el) => {
+      el.addEventListener("click", (e) => {
+        dst = e.target.href.replace(/(^\w+:|^)\/\//, "");
+      });
+    });
+    window.addEventListener("unload", () => {
+      ts1 = new Date();
+      navigator.sendBeacon(
+        ` + "`" + `https://log.seankhliao.com/api?trigger=beacon&src=go.seankhliao.com/{{ .Repo }}&dst=${dst}&dur=${ts1 - ts0}ms` + "`" + `
+      );
+    });
+  </script>
 </html>
 `
