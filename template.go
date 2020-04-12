@@ -22,7 +22,7 @@ const (
     source:
     <a
       href="https://github.com/seankhliao/{{ .Repo }}"
-      ping="https://log.seankhliao.com/api?trigger=ping&src=go.seankhliao.com/{{ .Repo }}&dst=github.com/seankhliao/{{ .Repo }}"
+      ping="https://statslogger.seankhliao.com/api?trigger=ping&src=go.seankhliao.com/{{ .Repo }}&dst=github.com/seankhliao/{{ .Repo }}"
     >
       github</a
     >
@@ -31,7 +31,7 @@ const (
     docs:
     <a
       href="https://godoc.org/go.seankhliao.com/{{ .Repo }}"
-      ping="https://log.seankhliao.com/api?trigger=ping&src=go.seankhliao.com/{{ .Repo }}&dst=godoc.org/go.seankhliao.com/{{ .Repo }}"
+      ping="https://statslogger.seankhliao.com/api?trigger=ping&src=go.seankhliao.com/{{ .Repo }}&dst=godoc.org/go.seankhliao.com/{{ .Repo }}"
     >
       godoc</a
     >
@@ -47,7 +47,9 @@ const (
     window.addEventListener("unload", () => {
       ts1 = new Date();
       navigator.sendBeacon(
-        `+"`"+`https://log.seankhliao.com/api?trigger=beacon&src=go.seankhliao.com/{{ .Repo }}&dst=${dst}&dur=${ts1 - ts0}ms`+"`"+`
+        `+"`"+`https://statslogger.seankhliao.com/api?trigger=beacon&src=go.seankhliao.com/{{ .Repo }}&dst=${dst}&dur=${
+          ts1 - ts0
+        }ms`+"`"+`
       );
     });
   </script>
