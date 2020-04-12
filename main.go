@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"flag"
-	"log"
+	stdlog "log"
 	"net/http"
 	"os"
 	"os/signal"
@@ -15,23 +15,27 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 )
 
+//go:generate go run generate.go template.gohtml
 const (
 	redirectURL = "https://seankhliao.com/"
 )
 
 func main() {
-	s := NewServer(os.Args[1:])
+	log.Logger = zerolog.New(zerolog.ConsoleWriter{Out: os.Stdout, NoColor: true})
+	slg := stdlog.New(log.Logger, "", 0)
+
+	s := NewServer(os.Args)
 
 	// prometheus
 	promhandler := promhttp.InstrumentMetricHandler(
 		prometheus.DefaultRegisterer,
 		promhttp.HandlerFor(
 			prometheus.DefaultGatherer,
-			promhttp.HandlerOpts{ErrorLog: s.stdlog},
+			promhttp.HandlerOpts{ErrorLog: slg},
 		),
 	)
 
@@ -48,23 +52,22 @@ func main() {
 		ReadHeaderTimeout: 5 * time.Second,
 		WriteTimeout:      5 * time.Second,
 		IdleTimeout:       60 * time.Second,
-		ErrorLog:          s.stdlog,
+		ErrorLog:          slg,
 	}
 	go func() {
-		s.log.Errorw("serve exit", "err", srv.ListenAndServe())
+		err := srv.ListenAndServe()
+		log.Info().Err(err).Msg("serve exit")
 	}()
 
 	// shutdown
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT)
-	s.log.Errorw("caught", "signal", <-sigs)
+	sig := <-sigs
+	log.Info().Str("signal", sig.String()).Msg("shutting down")
 	srv.Shutdown(context.Background())
 }
 
 type Server struct {
-	log    *zap.SugaredLogger
-	stdlog *log.Logger
-
 	// config
 	addr string
 	tmpl string
@@ -75,18 +78,7 @@ type Server struct {
 }
 
 func NewServer(args []string) *Server {
-	loggerp, err := zap.NewDevelopment()
-	if err != nil {
-		log.Fatal(err)
-	}
-	loggers, err := zap.NewStdLogAt(loggerp, zapcore.ErrorLevel)
-	if err != nil {
-		log.Fatal(err)
-	}
-
 	s := &Server{
-		log:    loggerp.Sugar(),
-		stdlog: loggers,
 		module: promauto.NewCounterVec(prometheus.CounterOpts{
 			Name: "com_seabkhliao_go_requests",
 			Help: "go module",
@@ -95,12 +87,12 @@ func NewServer(args []string) *Server {
 		),
 	}
 
-	fs := flag.NewFlagSet("com-seankhliao-go", flag.ExitOnError)
+	fs := flag.NewFlagSet(args[0], flag.ExitOnError)
 	fs.StringVar(&s.addr, "addr", ":80", "host:port to serve on")
 	fs.StringVar(&s.tmpl, "tmpl", "builtin", "template to use, takes a singe {{.Repo}}, 'builtin' uses built in")
-	err = fs.Parse(args)
+	err := fs.Parse(args)
 	if err != nil {
-		s.log.Fatalw("parse args", "err", err)
+		log.Fatal().Err(err).Msg("parse flags")
 	}
 
 	if s.tmpl == "builtin" {
@@ -109,7 +101,7 @@ func NewServer(args []string) *Server {
 		s.t = template.Must(template.ParseGlob(s.tmpl))
 	}
 
-	s.log.Infow("args", "addr", s.addr, "tmpl", s.tmpl)
+	log.Info().Str("addr", s.addr).Str("tmpl", s.tmpl).Msg("configured")
 	return s
 }
 
@@ -123,71 +115,15 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// get data
 	repo := strings.Split(r.URL.Path, "/")[1]
 
-	err := s.t.Execute(w, Module{repo})
+	err := s.t.Execute(w, map[string]string{"Repo": repo})
 	if err != nil {
-		s.log.Errorw("execute", "path", r.URL.Path, "err", err)
+		log.Error().Str("path", r.URL.Path).Err(err).Msg("execute")
 	}
 
+	// record
 	s.module.WithLabelValues(repo).Inc()
 }
 
 func (s *Server) healthcheck(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
-
-type Module struct {
-	Repo string
-}
-
-var tmplStr = `
-<!DOCTYPE html>
-<html lang="en">
-  <meta
-    name="go-import"
-    content="go.seankhliao.com/{{ .Repo }}
-        git https://github.com/seankhliao/{{ .Repo }}"
-  />
-  <meta
-    name="go-source"
-    content="go.seankhliao.com/{{ .Repo }}
-        https://github.com/seankhliao/{{ .Repo }}
-        https://github.com/seankhliao/{{ .Repo }}/tree/master{/dir}
-        https://github.com/seankhliao/{{ .Repo }}/blob/master{/dir}/{file}#L{line}"
-  />
-  <meta http-equiv="refresh" content="5;url=https://godoc.org/go.seankhliao.com/{{ .Repo }}" />
-  <title>go.seankhliao.com/{{ .Repo }}</title>
-  <p>
-    source:
-    <a
-      href="https://github.com/seankhliao/{{ .Repo }}"
-      ping="https://log.seankhliao.com/api?trigger=ping&src=go.seankhliao.com/{{ .Repo }}&dst=github.com/seankhliao/{{ .Repo }}"
-    >
-      github</a
-    >
-  </p>
-  <p>
-    docs:
-    <a
-      href="https://godoc.org/go.seankhliao.com/{{ .Repo }}"
-      ping="https://log.seankhliao.com/api?trigger=ping&src=go.seankhliao.com/{{ .Repo }}&dst=godoc.org/go.seankhliao.com/{{ .Repo }}"
-    >
-      godoc</a
-    >
-  </p>
-  <script>
-    let ts0 = new Date();
-    let dst = "";
-    document.querySelectorAll("a").forEach((el) => {
-      el.addEventListener("click", (e) => {
-        dst = e.target.href.replace(/(^\w+:|^)\/\//, "");
-      });
-    });
-    window.addEventListener("unload", () => {
-      ts1 = new Date();
-      navigator.sendBeacon(
-        ` + "`" + `https://log.seankhliao.com/api?trigger=beacon&src=go.seankhliao.com/{{ .Repo }}&dst=${dst}&dur=${ts1 - ts0}ms` + "`" + `
-      );
-    });
-  </script>
-</html>
-`
