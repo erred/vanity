@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"flag"
-	stdlog "log"
+	"log"
 	"net/http"
 	"os"
 	"os/signal"
@@ -16,7 +16,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/rs/zerolog"
-	"github.com/rs/zerolog/log"
 )
 
 //go:generate go run generate.go template.gohtml
@@ -25,84 +24,85 @@ const (
 )
 
 func main() {
-	log.Logger = zerolog.New(zerolog.ConsoleWriter{Out: os.Stdout, NoColor: true})
-	slg := stdlog.New(log.Logger, "", 0)
-
-	s := NewServer(os.Args)
-
-	// prometheus
-	promhandler := promhttp.InstrumentMetricHandler(
-		prometheus.DefaultRegisterer,
-		promhttp.HandlerFor(
-			prometheus.DefaultGatherer,
-			promhttp.HandlerOpts{ErrorLog: slg},
-		),
-	)
-
-	// routes
-	mux := http.NewServeMux()
-	mux.HandleFunc("/health", s.healthcheck)
-	mux.Handle("/metrics", promhandler)
-	mux.Handle("/", s)
-
-	// server
-	srv := &http.Server{
-		Addr:              s.addr,
-		Handler:           mux,
-		ReadHeaderTimeout: 5 * time.Second,
-		WriteTimeout:      5 * time.Second,
-		IdleTimeout:       60 * time.Second,
-		ErrorLog:          slg,
-	}
+	ctx, cancel := context.WithCancel(context.Background())
 	go func() {
-		err := srv.ListenAndServe()
-		log.Info().Err(err).Msg("serve exit")
+		sigs := make(chan os.Signal, 1)
+		signal.Notify(sigs, syscall.SIGINT)
+		<-sigs
+		cancel()
 	}()
 
-	// shutdown
-	sigs := make(chan os.Signal, 1)
-	signal.Notify(sigs, syscall.SIGINT)
-	sig := <-sigs
-	log.Info().Str("signal", sig.String()).Msg("shutting down")
-	srv.Shutdown(context.Background())
+	// server
+	s := NewServer(os.Args)
+	s.Run(ctx)
 }
 
 type Server struct {
 	// config
-	addr string
-	tmpl string
-	t    *template.Template
+	tmpl *template.Template
 
 	// metrics
 	module *prometheus.CounterVec
+
+	// server
+	log zerolog.Logger
+	mux *http.ServeMux
+	srv *http.Server
 }
 
 func NewServer(args []string) *Server {
 	s := &Server{
+		tmpl: template.Must(template.New("").Parse(tmplStr)),
 		module: promauto.NewCounterVec(prometheus.CounterOpts{
 			Name: "com_seabkhliao_go_requests",
 			Help: "go module",
 		},
 			[]string{"module"},
 		),
+		log: zerolog.New(zerolog.ConsoleWriter{Out: os.Stdout, NoColor: true, TimeFormat: time.RFC3339}).With().Timestamp().Logger(),
+		mux: http.NewServeMux(),
+		srv: &http.Server{
+			ReadHeaderTimeout: 5 * time.Second,
+			WriteTimeout:      5 * time.Second,
+			IdleTimeout:       60 * time.Second,
+		},
 	}
 
+	var tmpl string
 	fs := flag.NewFlagSet(args[0], flag.ExitOnError)
-	fs.StringVar(&s.addr, "addr", ":80", "host:port to serve on")
-	fs.StringVar(&s.tmpl, "tmpl", "builtin", "template to use, takes a singe {{.Repo}}, 'builtin' uses built in")
-	err := fs.Parse(args)
-	if err != nil {
-		log.Fatal().Err(err).Msg("parse flags")
+	fs.StringVar(&s.srv.Addr, "addr", ":80", "host:port to serve on")
+	fs.StringVar(&tmpl, "tmpl", "builtin", "template to use, takes a singe {{.Repo}}")
+	fs.Parse(args[1:])
+
+	s.mux.HandleFunc("/health", s.healthcheck)
+	s.mux.Handle("/metrics", promhttp.Handler())
+	s.mux.Handle("/", s)
+
+	s.srv.Handler = s.mux
+	s.srv.ErrorLog = log.New(s.log, "", 0)
+
+	if tmpl != "builtin" {
+		s.tmpl = template.Must(template.ParseGlob(tmpl))
 	}
 
-	if s.tmpl == "builtin" {
-		s.t = template.Must(template.New("t").Parse(tmplStr))
-	} else {
-		s.t = template.Must(template.ParseGlob(s.tmpl))
-	}
-
-	log.Info().Str("addr", s.addr).Str("tmpl", s.tmpl).Msg("configured")
+	s.log.Info().Str("addr", s.srv.Addr).Str("tmpl", tmpl).Msg("configured")
 	return s
+}
+
+func (s *Server) Run(ctx context.Context) error {
+	errc := make(chan error)
+	go func() {
+		errc <- s.srv.ListenAndServe()
+	}()
+
+	select {
+	case err := <-errc:
+		s.log.Error().Err(err).Msg("server exit")
+		return err
+	case <-ctx.Done():
+		s.srv.Shutdown(ctx)
+		return <-errc
+	}
 }
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -114,10 +114,16 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// get data
 	repo := strings.Split(r.URL.Path, "/")[1]
+	remote := r.Header.Get("x-forwarded-for")
+	if remote == "" {
+		remote = r.RemoteAddr
+	}
 
-	err := s.t.Execute(w, map[string]string{"Repo": repo})
+	err := s.tmpl.Execute(w, map[string]string{"Repo": repo})
 	if err != nil {
-		log.Error().Str("path", r.URL.Path).Err(err).Msg("execute")
+		s.log.Error().Str("path", r.URL.Path).Str("src", remote).Err(err).Msg("execute")
+	} else {
+		s.log.Debug().Str("path", r.URL.Path).Str("src", remote).Msg("served")
 	}
 
 	// record
