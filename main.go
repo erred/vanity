@@ -54,7 +54,7 @@ func NewServer(args []string) *Server {
 	s := &Server{
 		tmpl: template.Must(template.New("").Parse(tmplStr)),
 		module: promauto.NewCounterVec(prometheus.CounterOpts{
-			Name: "com_seabkhliao_go_requests",
+			Name: "vanity_module_requests",
 			Help: "go module",
 		},
 			[]string{"module"},
