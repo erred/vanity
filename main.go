@@ -68,18 +68,18 @@ func NewServer(args []string) *Server {
 		},
 	}
 
-	var tmpl string
-	fs := flag.NewFlagSet(args[0], flag.ExitOnError)
-	fs.StringVar(&s.srv.Addr, "addr", ":80", "host:port to serve on")
-	fs.StringVar(&tmpl, "tmpl", "builtin", "template to use, takes a singe {{.Repo}}")
-	fs.Parse(args[1:])
-
-	s.mux.HandleFunc("/health", s.healthcheck)
+	s.mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusOK) })
 	s.mux.Handle("/metrics", promhttp.Handler())
 	s.mux.Handle("/", s)
 
 	s.srv.Handler = s.mux
 	s.srv.ErrorLog = log.New(s.log, "", 0)
+
+	var tmpl string
+	fs := flag.NewFlagSet(args[0], flag.ExitOnError)
+	fs.StringVar(&s.srv.Addr, "addr", ":80", "host:port to serve on")
+	fs.StringVar(&tmpl, "tmpl", "builtin", "template to use, takes a singe {{.Repo}}")
+	fs.Parse(args[1:])
 
 	if tmpl != "builtin" {
 		s.tmpl = template.Must(template.ParseGlob(tmpl))
@@ -89,20 +89,19 @@ func NewServer(args []string) *Server {
 	return s
 }
 
-func (s *Server) Run(ctx context.Context) error {
+func (s *Server) Run(ctx context.Context) {
 	errc := make(chan error)
 	go func() {
 		errc <- s.srv.ListenAndServe()
 	}()
 
+	var err error
 	select {
-	case err := <-errc:
-		s.log.Error().Err(err).Msg("server exit")
-		return err
+	case err = <-errc:
 	case <-ctx.Done():
-		s.srv.Shutdown(ctx)
-		return <-errc
+		err = s.srv.Shutdown(ctx)
 	}
+	s.log.Error().Err(err).Msg("server exit")
 }
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -128,8 +127,4 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// record
 	s.module.WithLabelValues(repo).Inc()
-}
-
-func (s *Server) healthcheck(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(http.StatusOK)
 }
