@@ -19,8 +19,21 @@ import (
 )
 
 //go:generate go run generate.go template.gohtml
+
 const (
 	redirectURL = "https://seankhliao.com/"
+)
+
+var (
+	port = func() string {
+		port := os.Getenv("PORT")
+		if port == "" {
+			port = ":8080"
+		} else if port[0] != ':' {
+			port = ":" + port
+		}
+		return port
+	}()
 )
 
 func main() {
@@ -77,7 +90,7 @@ func NewServer(args []string) *Server {
 
 	var tmpl string
 	fs := flag.NewFlagSet(args[0], flag.ExitOnError)
-	fs.StringVar(&s.srv.Addr, "addr", ":80", "host:port to serve on")
+	fs.StringVar(&s.srv.Addr, "addr", port, "host:port to serve on")
 	fs.StringVar(&tmpl, "tmpl", "builtin", "template to use, takes a singe {{.Repo}}")
 	fs.Parse(args[1:])
 
