@@ -46,8 +46,7 @@ func main() {
 	}()
 
 	// server
-	s := NewServer(os.Args)
-	s.Run(ctx)
+	NewServer(os.Args).Run(ctx)
 }
 
 type Server struct {
