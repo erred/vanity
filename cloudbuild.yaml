@@ -1,4 +1,5 @@
 substitutions:
+  _REG: us.gcr.io
   _IMG: vanity
 tags:
   - $TAG_NAME
@@ -20,8 +21,8 @@ steps:
     args:
       - -c=.
       - -f=Dockerfile
-      - -d=us.gcr.io/$PROJECT_ID/$_IMG:latest
-      - -d=us.gcr.io/$PROJECT_ID/$_IMG:$TAG_NAME
+      - -d=$_REG/$PROJECT_ID/$_IMG:latest
+      - -d=$_REG/$PROJECT_ID/$_IMG:$TAG_NAME
       - -d=index.docker.io/seankhliao/$_IMG:latest
       - -d=index.docker.io/seankhliao/$_IMG:$TAG_NAME
       - --reproducible
@@ -36,7 +37,7 @@ steps:
       - run
       - deploy
       - vanity
-      - --image=gcr.io/$PROJECT_ID/$_IMG:$TAG_NAME
+      - --image=$_REG/$PROJECT_ID/$_IMG:$TAG_NAME
       - --region=us-central1
       - --platform=managed
       - --allow-unauthenticated
