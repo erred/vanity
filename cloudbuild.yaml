@@ -1,6 +1,6 @@
 substitutions:
-  _REG: us.gcr.io
   _IMG: vanity
+  _REG: us.gcr.io
 tags:
   - $TAG_NAME
   - $SHORT_SHA
