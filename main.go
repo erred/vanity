@@ -68,12 +68,13 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if remote == "" {
 		remote = r.RemoteAddr
 	}
+	ua := r.Header.Get("user-agent")
 
 	err := s.tmpl.Execute(w, map[string]string{"Repo": repo})
 	if err != nil {
-		s.svc.Log.Error().Str("path", r.URL.Path).Str("src", remote).Err(err).Msg("execute")
+		s.svc.Log.Error().Str("path", r.URL.Path).Str("src", remote).Str("user-agent", ua).Err(err).Msg("execute")
 	} else {
-		s.svc.Log.Debug().Str("path", r.URL.Path).Str("src", remote).Msg("served")
+		s.svc.Log.Debug().Str("path", r.URL.Path).Str("src", remote).Str("user-agent", ua).Msg("served")
 	}
 
 	// record
