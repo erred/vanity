@@ -3,6 +3,7 @@ module go.seankhliao.com/vanity
 go 1.14
 
 require (
-	github.com/prometheus/client_golang v1.5.1
-	go.seankhliao.com/usvc v0.1.4
+	github.com/rs/zerolog v1.18.0
+	go.opentelemetry.io/otel v0.11.0
+	go.opentelemetry.io/otel/exporters/metric/prometheus v0.11.0
 )
