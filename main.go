@@ -52,6 +52,8 @@ func main() {
 
 	s.log = zerolog.New(os.Stdout).With().Timestamp().Logger()
 
+	s.tmpl = template.Must(template.New("page").Parse(tmplStr))
+
 	m := http.NewServeMux()
 	m.Handle("/", s)
 	m.Handle("/metrics", promExporter)
