@@ -58,15 +58,9 @@ type Server struct {
 	tmpl *template.Template
 
 	// metrics
-	meter   metric.Meter
-	module  metric.Int64Counter
-	latency metric.Int64ValueRecorder
+	module metric.Int64Counter
 
 	log zerolog.Logger
-
-	addr    string
-	tlsCert string
-	tlsKey  string
 }
 
 func (s Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
