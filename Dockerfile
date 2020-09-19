@@ -1,9 +1,8 @@
 FROM golang:alpine AS build
 
 WORKDIR /workspace
-ENV CGO_ENABLED=0
 COPY . .
-RUN go build -o /bin/vanity
+RUN CGO_ENABLED=0 go build -trimpath -ldflags='-s -w' -o /bin/vanity
 
 
 FROM scratch
