@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"flag"
 	"net/http"
 	"os"
 	"strings"
@@ -21,14 +20,10 @@ const (
 )
 
 func main() {
-	var srvconf usvc.Conf
 	var s Server
 
-	fs := flag.NewFlagSet(os.Args[0], flag.ExitOnError)
-	srvconf.RegisterFlags(fs)
-	fs.Parse(os.Args[1:])
-
-	s.log = zerolog.New(os.Stdout).With().Timestamp().Logger()
+	srvc := usvc.DefaultConf()
+	s.log = srvc.Logger()
 
 	s.module = metric.Must(global.Meter(os.Args[0])).NewInt64Counter(
 		"module_hit",
@@ -40,16 +35,9 @@ func main() {
 	m := http.NewServeMux()
 	m.Handle("/", s)
 
-	_, run, err := srvconf.Server(m, s.log)
+	err := srvc.RunServer(context.Background(), m, s.log)
 	if err != nil {
-		s.log.Error().Err(err).Msg("prepare server")
-		os.Exit(1)
-	}
-
-	err = run(context.Background())
-	if err != nil {
-		s.log.Error().Err(err).Msg("exit")
-		os.Exit(1)
+		s.log.Fatal().Err(err).Msg("run server")
 	}
 }
 
