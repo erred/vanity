@@ -1,0 +1,18 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  labels:
+    app.kubernetes.io/name: vanity
+  name: vanity
+spec:
+  secretName: vanity-cert
+  duration: 87600h # 10 years
+  renewBefore: 360h
+  dnsNames:
+    - "vanity"
+    - "vanity.default"
+    - "vanity.default.svc"
+    - "vanity.default.svc.cluster.local"
+  issuerRef:
+    name: internal-ca
+    kind: ClusterIssuer
