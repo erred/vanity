@@ -30,23 +30,18 @@ spec:
       containers:
         - name: vanity
           image: us.gcr.io/com-seankhliao/vanity:latest
-          args:
-            - -tls.crt=/var/secret/tls/tls.crt
-            - -tls.key=/var/secret/tls/tls.key
-            - -ca.crt=/var/secret/tls/ca.crt
-            - -saver=saver.default.svc.cluster.local:443
           ports:
             - name: https
               containerPort: 8080
             - name: metric
               containerPort: 8000
-          readinessProbe:
-            httpGet:
-              path: /health
-              port: 8000
           livenessProbe:
             httpGet:
-              path: /health
+              path: /liveness
+              port: 8000
+          readinessProbe:
+            httpGet:
+              path: /readiness
               port: 8000
           volumeMounts:
             - name: certs

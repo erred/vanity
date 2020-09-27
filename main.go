@@ -4,55 +4,58 @@ import (
 	"context"
 	"flag"
 	"net/http"
+	"os"
 	"strings"
 	"text/template"
 
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/rs/zerolog"
-	"go.opentelemetry.io/otel/api/metric"
+	"go.opentelemetry.io/otel/api/global"
+	"go.opentelemetry.io/otel/api/trace"
 	"go.seankhliao.com/usvc"
 )
 
 //go:generate go run generate.go template.gohtml
 
 const (
-	name        = "vanity"
+	name        = "go.seankhliao.com/vanity"
 	redirectURL = "https://seankhliao.com/"
 )
 
 func main() {
-	usvc.Run(context.Background(), name, &Server{}, false)
+	os.Exit(usvc.Exec(context.Background(), &Server{}, os.Args))
 }
 
 type Server struct {
 	// config
 	tmpl *template.Template
 
+	log    zerolog.Logger
+	tracer trace.Tracer
+
 	// metrics
-	module metric.Int64Counter
-
-	log zerolog.Logger
+	module *prometheus.CounterVec
 }
 
-func (s *Server) Flag(fs *flag.FlagSet) {
-}
+func (s *Server) Flags(fs *flag.FlagSet) {}
 
-func (s *Server) Register(c *usvc.Components) error {
-	s.log = c.Log
+func (s *Server) Setup(ctx context.Context, u *usvc.USVC) error {
+	s.log = u.Logger
+	s.tracer = global.Tracer(name)
+
 	s.tmpl = template.Must(template.New("page").Parse(tmplStr))
-
-	s.module = metric.Must(c.Meter).NewInt64Counter(
-		"module_request_total",
-		metric.WithDescription("requests per module"),
-	)
-	c.HTTP.Handle("/", s)
-	return nil
-}
-
-func (s *Server) Shutdown(ctx context.Context) error {
+	s.module = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "vanity_module_requests",
+	}, []string{"mod"})
+	u.ServiceMux.Handle("/", s)
 	return nil
 }
 
 func (s Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	_, span := s.tracer.Start(r.Context(), "serve")
+	defer span.End()
+
 	// filter paths
 	if r.URL.Path == "/" {
 		http.Redirect(w, r, redirectURL, http.StatusFound)
