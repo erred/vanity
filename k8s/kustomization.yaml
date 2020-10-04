@@ -10,5 +10,5 @@ resources:
   - service.k8s.yaml
 images:
   - name: us.gcr.io/com-seankhliao/vanity
-    newName: seankhliao/vanity
+    newName: reg.seankhliao.com/vanity
     # newTag: IMAGE_TAG
