@@ -27,6 +27,8 @@ spec:
         runAsNonRoot: true
         runAsUser: 65534
       terminationGracePeriodSeconds: 10
+      imagePullSecrets:
+        - name: regcred
       containers:
         - name: vanity
           image: us.gcr.io/com-seankhliao/vanity:latest
