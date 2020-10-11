@@ -36,23 +36,6 @@ const (
       godoc</a
     >
   </p>
-  <script>
-    let ts0 = new Date();
-    let dst = "";
-    document.querySelectorAll("a").forEach((el) => {
-      el.addEventListener("click", (e) => {
-        dst = e.target.href.replace(/(^\w+:|^)\/\//, "");
-      });
-    });
-    window.addEventListener("unload", () => {
-      ts1 = new Date();
-      navigator.sendBeacon(
-        `+"`"+`https://statslogger.seankhliao.com/form?trigger=beacon&src=go.seankhliao.com/{{ .Repo }}&dst=${dst}&dur=${
-          ts1 - ts0
-        }ms`+"`"+`
-      );
-    });
-  </script>
 </html>
 `
 )
